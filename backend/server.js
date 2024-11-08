@@ -10,6 +10,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5051;
 
+app.use(express.json());            //allows to parse the body of the request
 
 //authentication routes
 app.use("/api/auth", authRoutes)                //http://localhost:5055/api/auth/signup
