@@ -7,7 +7,7 @@ const generateTokens = (userId) => {
         expiresIn: "15m",
     })         //1st arg: payload, 2nd arg: access t. secret, opt arg: expiry
     
-    const refreshToken = jwt.sign({ userId} , process.env.ACCESS_TOKEN_SECRET, {
+    const refreshToken = jwt.sign({ userId} , process.env.REFRESH_TOKEN_SECRET, {
         expiresIn: "7d",
     })         
 
@@ -35,44 +35,52 @@ const setCookies = (res, accessToken, refreshToken) => {
     })
 }
 
-
 export const signup = async (req, res) => {
-    const {email, password, name} = req.body
-    const userExists = await User.findOne({ email });
+	const { email, password, name } = req.body;
+	try {
+		const userExists = await User.findOne({ email });
 
-    try {
-        if (userExists) {
-            return res.status(400).json({message: "User already exists"});
-        }
-        const user = await User.create({name, email, password})
-    
-    //authenticate user
-    const {accessToken, refreshToken} = generateTokens(user._id)
-    await storeRefreshToken(user._id, refreshToken)
+		if (userExists) {
+			return res.status(400).json({ message: "User already exists" });
+		}
+		const user = await User.create({ name, email, password });
 
-    setCookies(res, accessToken, refreshToken); 
+		// authenticate
+		const { accessToken, refreshToken } = generateTokens(user._id);
+		await storeRefreshToken(user._id, refreshToken);
 
-        res.status(201).json({
-            user: {
-                _id: user._id, 
-                name: user.name,
-                email: user.email,
-                role: user.role,
-        }, 
-        message: "User created successfully",
-    });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }   
+		setCookies(res, accessToken, refreshToken);
 
-
-    // res.send("Sign up route called")
+		res.status(201).json({
+			_id: user._id,
+			name: user.name,
+			email: user.email,
+			role: user.role,
+		});
+	} catch (error) {
+		console.log("Error in signup controller", error.message);
+		res.status(500).json({ message: error.message });
+	}
 };
+
 
 export const login = async (req, res) => {
     res.send("Login route called")
 };
 
 export const logout = async (req, res) => {
-    res.send("Logout route called")
+    try {
+		const refreshToken = req.cookies.refreshToken;
+		if (refreshToken) {
+			const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+			await redis.del(`refresh_token:${decoded.userId}`);
+		}
+
+		res.clearCookie("accessToken");
+		res.clearCookie("refreshToken");
+		res.json({ message: "Logged out successfully" });
+	} catch (error) {
+		console.log("Error in logout controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
 };
