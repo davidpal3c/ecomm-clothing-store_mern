@@ -63,7 +63,6 @@ export const signup = async (req, res) => {
 	}
 };
 
-
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body
@@ -110,3 +109,43 @@ export const logout = async (req, res) => {
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
+
+
+export const refreshToken = async (req, res) => {
+	try {
+		const refreshToken = req.cookies.refreshToken;
+
+		if (!refreshToken) {
+			return res.status(401).json({ message: "No refresh token provided" });
+		}
+
+		const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+		const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
+
+		if (storedToken !== refreshToken) {
+			return res.status(401).json({ message: "Invalid refresh token" });
+		}
+
+        //generate new access token 
+		const accessToken = jwt.sign({ userId: decoded.userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15m" });
+
+        //set it into cookie
+		res.cookie("accessToken", accessToken, {
+            httpOnly: true,                                             // prevent XSS attacks (cross-site scripting attacks), cannot be accessed by JS
+            secure: process.env.NODE_ENV === "production",              // sets to true in production (https)   
+            sameSite: "strict",                                         // prevents CSRF attacks, cross-site request forgery attacks
+            maxAge: 15 * 60 * 1000                                      // 15 min: millisecond format
+        });
+
+		res.json({ message: "Token refreshed successfully" });
+	} catch (error) {
+		console.log("Error in refreshToken controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+
+
+// export const getProfile = async (req, res) => {  
+// } 
+// ToDo: Implement get profile 
