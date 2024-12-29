@@ -65,3 +65,59 @@ export const createProduct = async (req, res) => {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
+
+export const deleteProduct = async (req, res) => { 
+    try {
+        //delete product from mongodb and cloudinary
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+
+        if (product.image) {
+            const publicId = product.image.split("/").pop().split(".")[0];  //extract publicId from image url 
+            
+            try {
+                await cloudinary.uploader.destroy(publicId);
+                console.log("Image deleted from cloudinary");
+            } catch (error) {
+                console.log("Error deleting img from cloudinary", error.message);                
+            }            
+        }
+
+        await Product.findByIdAndDelete(req.params.id);
+        res.json({ message: "Product deleted successfully" });
+    } catch (error) {
+        console.log("Error in deleteProduct controller", error.message);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+
+};
+
+export const getRecommendedProducts = async (req, res) => {
+    try {
+        const products = await Product.aggregate([
+            { $sample: { size: 3 } },
+            { $project: { _id: 1, name: 1, description: 1, image: 1, price: 1 } }
+        ])
+
+        res.json(products);
+
+    } catch (error) {
+        console.log("Error in getRecommendedProducts controller", error.message);
+        res.status(500).json({ message: "Server Error", error: error.message });        
+    }
+};
+
+export const getProductsByCategory = async (req, res) => {
+    const { category } = req.params;
+
+    try {
+        const products = await Product.find({ category });
+        res.json(products);
+    } catch (error) {
+        console.log("Error in getProductsByCategory controller", error.message);    
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
