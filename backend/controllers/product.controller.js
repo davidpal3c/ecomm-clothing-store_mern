@@ -75,10 +75,10 @@ export const deleteProduct = async (req, res) => {
         }
 
         if (product.image) {
-            const publicId = product.image.split("/").pop().split(".")[0];  //extract publicId from image url 
+            const publicId = product.image.split("/").pop().split(".")[0];          //extract id from image url 
             
             try {
-                await cloudinary.uploader.destroy(publicId);
+                await cloudinary.uploader.destroy(`products/${publicId}`);
                 console.log("Image deleted from cloudinary");
             } catch (error) {
                 console.log("Error deleting img from cloudinary", error.message);                
@@ -97,8 +97,18 @@ export const deleteProduct = async (req, res) => {
 export const getRecommendedProducts = async (req, res) => {
     try {
         const products = await Product.aggregate([
-            { $sample: { size: 3 } },
-            { $project: { _id: 1, name: 1, description: 1, image: 1, price: 1 } }
+            { 
+                $sample: { size: 3 } 
+            },
+            { 
+                $project: { 
+                    _id: 1, 
+                    name: 1, 
+                    description: 1, 
+                    image: 1, 
+                    price: 1 
+                } 
+            }
         ])
 
         res.json(products);
@@ -120,3 +130,38 @@ export const getProductsByCategory = async (req, res) => {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
+
+export const toggleFeaturedProduct = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+        if (product) {
+            product.isFeatured = !product.isFeatured;
+            const updatedProduct = await product.save();
+
+            // update redis cache
+            await updateFeaturedProductsInRedis();
+
+            res.json(updatedProduct);
+            // res.json({ message: "Product updated successfully" });
+        } else {
+            res.status(404).json({ message: "Product not found" });
+        }
+    } catch (error) {
+        console.log("Error in toggleFeaturedProduct controller", error.message);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+}
+
+async function updateFeaturedProductsInRedis() {
+    try {
+        const featuredProducts = await Product.find({ isFeatured: true }).lean();       // get all featured products from mongoDb
+        await redis.set("featured_products", JSON.stringify(featuredProducts));
+
+        // await redis.set("featured_products", JSON.stringify(featuredProducts), {
+        //     EX: 60 * 60 * 24, // 1 day expiration
+        // });
+
+    } catch (error) {
+        console.log("Error updating featured products in redis (cache function)", error.message);
+    }
+}
