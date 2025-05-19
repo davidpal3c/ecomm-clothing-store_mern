@@ -19,7 +19,6 @@ const storeRefreshToken = async(userId, refreshToken) => {
 }
 
 //cookies function setter
-
 const setCookies = (res, accessToken, refreshToken) => {
     res.cookie("accessToken", accessToken, {
         httpOnly: true,                                             // prevent XSS attacks (cross-site scripting attacks), cannot be accessed by JS
@@ -36,20 +35,32 @@ const setCookies = (res, accessToken, refreshToken) => {
 }
 
 export const signup = async (req, res) => {
-	const { email, password, name } = req.body;
+	const { email, password, name, role } = req.body;
 	try {
 		const userExists = await User.findOne({ email });
 
 		if (userExists) {
 			return res.status(400).json({ message: "User already exists" });
 		}
-		const user = await User.create({ name, email, password });
+
+        if (role !== "admin" || role === null) {
+            role = "customer";         
+        }
+
+		const user = await User.create({ name, email, password, role });
 
 		// authenticate
 		const { accessToken, refreshToken } = generateTokens(user._id);
 		await storeRefreshToken(user._id, refreshToken);
 
 		setCookies(res, accessToken, refreshToken);
+
+        if (user.role === "admin") {
+            console.log("Admin user created");
+        }
+        else {
+            console.log("Regular user created");
+        }
 
 		res.status(201).json({
 			_id: user._id,
@@ -148,10 +159,3 @@ export const refreshToken = async (req, res) => {
 // export const getProfile = async (req, res) => {  
 // } 
 
-
-// accesstoken
-// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzYzMzc3ZmRmOGIyZDVmMTAyNTg5NjciLCJpYXQiOjE3MzQ1NTYwNzUsImV4cCI6MTczNDU1Njk3NX0.C2nyBIeXvcdDzazrTRCefhZfKUohcNfVI8UpN_9Ci1A
-
-
-//refreshtoken
-// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzYzMzc3ZmRmOGIyZDVmMTAyNTg5NjciLCJpYXQiOjE3MzQ1NTU3NDYsImV4cCI6MTczNTE2MDU0Nn0.mD17-nbtBWEqdA8lCo4iUMtpENpuiab4Xs1u5UucqHA
