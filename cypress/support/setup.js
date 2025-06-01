@@ -1,0 +1,1 @@
+// fetches all products and one by ID (requires manual ID input)
